@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 课程进度调试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        .button.success { background: #28a745; }
+        .button.warning { background: #ffc107; color: black; }
+        .log { background: #f8f9fa; padding: 10px; border-radius: 5px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; margin: 10px 0; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>🔧 课程进度同步调试</h1>
+    <p>这个页面用于测试课程进度修复是否有效</p>
+
+    <button class="button" onclick="testProgressSync()">测试进度同步</button>
+    <button class="button success" onclick="checkCloudData()">检查云端数据</button>
+    <button class="button warning" onclick="clearLog()">清除日志</button>
+    <button class="button" onclick="window.location.href='index.html'">返回首页</button>
+
+    <div id="log" class="log">等待测试...</div>
+
+    <!-- 引入必要的脚本 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase-client.js"></script>
+    <script src="js/learning-tracker.js"></script>
+
+    <script>
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logDiv = document.getElementById('log');
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+            logDiv.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function clearLog() {
+            document.getElementById('log').textContent = '日志已清除...\n';
+        }
+
+        async function testProgressSync() {
+            log('🔧 开始测试课程进度同步修复...');
+
+            try {
+                // 等待Supabase初始化
+                if (!window.supabaseClientInitialized) {
+                    log('⏳ 等待Supabase初始化...');
+                    await new Promise((resolve) => {
+                        const checkInterval = setInterval(() => {
+                            if (window.supabaseClientInitialized) {
+                                clearInterval(checkInterval);
+                                resolve();
+                            }
+                        }, 100);
+                    });
+                }
+
+                // 检查用户登录状态
+                const { data: { session } } = await window.supabase.auth.getSession();
+                if (!session) {
+                    log('❌ 用户未登录，请先登录', 'error');
+                    return;
+                }
+
+                log(`✅ 用户已登录: ${session.user.email}`);
+
+                // 创建测试进度数据
+                const testProgress = {
+                    courseId: 'course2',
+                    totalLessons: 10,
+                    lessonsCompleted: 5,
+                    totalStudyTime: 30 * 60 * 1000, // 30分钟
+                    sessionCount: 3,
+                    lastAccessTime: Date.now()
+                };
+                testProgress.progressPercentage = Math.round((testProgress.lessonsCompleted / testProgress.totalLessons) * 100);
+
+                log(`📊 测试进度数据: ${JSON.stringify(testProgress, null, 2)}`);
+
+                // 手动调用修复后的syncProgressToCloud
+                if (window.learningTracker) {
+                    await window.learningTracker.syncProgressToCloud(testProgress.courseId, testProgress);
+                    log('✅ 课程进度同步测试完成', 'success');
+                } else {
+                    log('❌ learningTracker未初始化', 'error');
+                }
+
+            } catch (error) {
+                log(`❌ 测试失败: ${error.message}`, 'error');
+                log(`❌ 错误堆栈: ${error.stack}`, 'error');
+            }
+        }
+
+        async function checkCloudData() {
+            log('🔍 检查云端数据...');
+
+            try {
+                const { data: { session } } = await window.supabase.auth.getSession();
+                if (!session) {
+                    log('❌ 用户未登录', 'error');
+                    return;
+                }
+
+                // 检查学习进度
+                log('📋 查询 user_progress 表...');
+                const { data: progress, error: progressError } = await window.supabase
+                    .from('user_progress')
+                    .select('*')
+                    .eq('user_id', session.user.id)
+                    .order('updated_at', { ascending: false });
+
+                if (progressError) {
+                    log(`❌ 查询进度数据失败: ${progressError.message}`, 'error');
+                    log(`❌ 错误详情: ${JSON.stringify(progressError, null, 2)}`, 'error');
+                    return;
+                }
+
+                log('✅ 云端进度数据查询成功:', 'success');
+                log(`- 学习进度记录数量: ${progress.length}`);
+
+                if (progress.length === 0) {
+                    log('⚠️ user_progress 表为空，这就是问题所在！', 'warning');
+                } else {
+                    progress.forEach(p => {
+                        log(`  📚 课程 ${p.course_id}: ${p.progress_percentage}% (${p.lessonsCompleted}/${p.total_lessons}), 学习时间: ${p.total_study_time}秒`);
+                    });
+                }
+
+                // 检查学习会话
+                log('📋 查询 learning_sessions 表...');
+                const { data: sessions, error: sessionError } = await window.supabase
+                    .from('learning_sessions')
+                    .select('*')
+                    .eq('user_id', session.user.id)
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+
+                if (sessionError) {
+                    log(`❌ 查询会话数据失败: ${sessionError.message}`, 'error');
+                } else {
+                    log(`- 学习会话记录数量: ${sessions.length}`);
+                    if (sessions.length > 0) {
+                        log('🎯 这就是为什么你能看到learning_sessions有记录但user_progress没有数据的原因', 'success');
+                    }
+                }
+
+            } catch (error) {
+                log(`❌ 检查数据失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', async function() {
+            log('🚀 课程进度调试页面加载完成');
+
+            try {
+                // 等待关键组件加载
+                await new Promise((resolve) => {
+                    const checkInterval = setInterval(() => {
+                        if (window.supabaseClientInitialized) {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }
+                    }, 100);
+                });
+
+                log('✅ Supabase初始化完成', 'success');
+                log('💡 现在可以开始测试了');
+                log('📝 使用说明:');
+                log('1. 点击"测试进度同步"测试修复功能');
+                log('2. 点击"检查云端数据"查看数据库状态');
+                log('3. 如果user_progress表有数据了，说明修复成功');
+
+            } catch (error) {
+                log(`❌ 初始化失败: ${error.message}`, 'error');
+            }
+        });
+    </script>
+</body>
+</html>
