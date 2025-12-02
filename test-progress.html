@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>课程进度测试</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; }
+        .status { padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .log { background: #f8f9fa; padding: 10px; border-radius: 5px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; margin: 10px 0; }
+        .test-courses { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 20px 0; }
+        .course-card { border: 1px solid #ddd; padding: 20px; border-radius: 8px; }
+        .progress-bar { width: 100%; height: 10px; background: #f0f0f0; border-radius: 5px; overflow: hidden; margin: 10px 0; }
+        .progress-fill { height: 100%; background: #28a745; transition: width 0.3s ease; }
+    </style>
+</head>
+<body>
+    <h1>🔧 课程进度同步测试</h1>
+
+    <div id="status" class="status info">准备开始测试...</div>
+
+    <button onclick="testCourseProgress()">测试课程进度同步</button>
+    <button onclick="checkCloudData()">检查云端数据</button>
+    <button onclick="clearLocalData()">清除本地数据</button>
+    <button onclick="window.location.href='index.html'">返回首页</button>
+
+    <div class="test-courses">
+        <div class="course-card">
+            <h3>测试课程 1 - 业务职责</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-1" style="width: 0%"></div>
+            </div>
+            <div id="progress-text-1">0%</div>
+            <button onclick="simulateProgress(1)">模拟进度更新</button>
+        </div>
+
+        <div class="course-card">
+            <h3>测试课程 2 - 学员管理</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-2" style="width: 0%"></div>
+            </div>
+            <div id="progress-text-2">0%</div>
+            <button onclick="simulateProgress(2)">模拟进度更新</button>
+        </div>
+    </div>
+
+    <h3>📝 测试日志:</h3>
+    <div id="log" class="log">等待测试开始...</div>
+
+    <script src="js/supabase-client.js"></script>
+    <script src="js/learning-tracker.js"></script>
+
+    <script>
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logDiv = document.getElementById('log');
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+            logDiv.innerHTML += `${timestamp} ${prefix} ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+        }
+
+        async function testCourseProgress() {
+            log('开始测试课程进度同步...', 'info');
+            updateStatus('正在测试进度同步...', 'info');
+
+            try {
+                // 等待Supabase初始化
+                await new Promise((resolve) => {
+                    const checkInterval = setInterval(() => {
+                        if (window.supabaseClientInitialized) {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }
+                    }, 100);
+                });
+
+                // 检查用户登录状态
+                const { data: { session } } = await window.supabase.auth.getSession();
+                if (!session) {
+                    log('用户未登录，请先登录', 'error');
+                    updateStatus('用户未登录', 'error');
+                    return;
+                }
+
+                log(`用户已登录: ${session.user.email}`, 'success');
+
+                // 测试两个课程的进度同步
+                await testSingleCourseProgress(1, '业务职责&学员生命周期');
+                await testSingleCourseProgress(2, '学员管理&业务绩效&产品规则');
+
+                log('所有课程进度测试完成', 'success');
+                updateStatus('测试完成', 'success');
+
+            } catch (error) {
+                log(`测试失败: ${error.message}`, 'error');
+                updateStatus(`测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSingleCourseProgress(courseId, courseName) {
+            log(`开始测试课程 ${courseId}: ${courseName}`, 'info');
+
+            try {
+                // 创建模拟进度数据
+                const mockProgress = {
+                    courseId: `course${courseId}`,
+                    totalLessons: 10,
+                    lessonsCompleted: Math.floor(Math.random() * 5) + 1,
+                    totalStudyTime: (Math.floor(Math.random() * 1800) + 300) * 1000, // 5-30分钟
+                    sessionCount: Math.floor(Math.random() * 3) + 1,
+                    lastAccessTime: Date.now()
+                };
+
+                mockProgress.progressPercentage = Math.round((mockProgress.lessonsCompleted / mockProgress.totalLessons) * 100);
+
+                log(`模拟进度数据: ${JSON.stringify(mockProgress)}`, 'info');
+
+                // 手动调用syncProgressToCloud
+                if (window.learningTracker) {
+                    await window.learningTracker.syncProgressToCloud(mockProgress.courseId, mockProgress);
+                    log(`课程 ${courseId} 进度同步完成`, 'success');
+
+                    // 更新UI
+                    updateProgressBar(courseId, mockProgress.progressPercentage);
+                } else {
+                    log('learningTracker未初始化', 'error');
+                }
+
+            } catch (error) {
+                log(`课程 ${courseId} 测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        function simulateProgress(courseId) {
+            const progress = Math.floor(Math.random() * 100);
+            updateProgressBar(courseId, progress);
+            log(`模拟课程 ${courseId} 进度更新: ${progress}%`, 'info');
+        }
+
+        function updateProgressBar(courseId, progress) {
+            const progressBar = document.getElementById(`progress-${courseId}`);
+            const progressText = document.getElementById(`progress-text-${courseId}`);
+
+            if (progressBar && progressText) {
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `${progress}%`;
+            }
+        }
+
+        async function checkCloudData() {
+            log('检查云端数据...', 'info');
+
+            try {
+                const { data: { session } } = await window.supabase.auth.getSession();
+                if (!session) {
+                    log('用户未登录', 'error');
+                    return;
+                }
+
+                // 检查学习会话
+                const { data: sessions, error: sessionError } = await window.supabase
+                    .from('learning_sessions')
+                    .select('*')
+                    .eq('user_id', session.user.id)
+                    .order('created_at', { ascending: false })
+                    .limit(10);
+
+                // 检查学习进度
+                const { data: progress, error: progressError } = await window.supabase
+                    .from('user_progress')
+                    .select('*')
+                    .eq('user_id', session.user.id)
+                    .order('updated_at', { ascending: false });
+
+                if (sessionError || progressError) {
+                    log(`查询数据失败: ${sessionError?.message || progressError?.message}`, 'error');
+                    return;
+                }
+
+                log(`云端数据查询成功:`, 'success');
+                log(`- 学习会话数量: ${sessions.length}`, 'info');
+                log(`- 学习进度记录数量: ${progress.length}`, 'info');
+
+                progress.forEach(p => {
+                    log(`  课程 ${p.course_id}: ${p.progress_percentage}% (${p.lessons_completed}/${p.total_lessons})`, 'info');
+                });
+
+            } catch (error) {
+                log(`检查云端数据失败: ${error.message}`, 'error');
+            }
+        }
+
+        function clearLocalData() {
+            localStorage.removeItem('courseProgress');
+            localStorage.removeItem('learningData');
+            localStorage.removeItem('currentLearningCourse');
+            localStorage.removeItem('currentCourseId');
+
+            // 重置UI
+            updateProgressBar(1, 0);
+            updateProgressBar(2, 0);
+
+            log('本地数据已清除', 'success');
+        }
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', async function() {
+            log('课程进度测试页面加载完成', 'info');
+
+            try {
+                // 等待Supabase初始化
+                await new Promise((resolve) => {
+                    const checkInterval = setInterval(() => {
+                        if (window.supabaseClientInitialized) {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }
+                    }, 100);
+                });
+
+                log('Supabase初始化完成', 'success');
+                updateStatus('准备就绪', 'success');
+
+            } catch (error) {
+                log(`初始化失败: ${error.message}`, 'error');
+                updateStatus(`初始化失败: ${error.message}`, 'error');
+            }
+        });
+    </script>
+</body>
+</html>
