@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Fix</title>
+</head>
+<body>
+    <h1>Course Progress Test</h1>
+    <button onclick="testFix()">Test Progress Fix</button>
+    <div id="output"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // 简化的Supabase配置
+        const SUPABASE_URL = 'https://your-project.supabase.co';
+        const SUPABASE_KEY = 'your-key';
+
+        window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function testFix() {
+            const output = document.getElementById('output');
+            output.innerHTML = 'Testing...';
+
+            try {
+                // 这里需要你的实际Supabase配置
+                output.innerHTML = 'Please configure Supabase credentials first';
+            } catch (error) {
+                output.innerHTML = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
